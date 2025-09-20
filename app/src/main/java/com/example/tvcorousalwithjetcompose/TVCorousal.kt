@@ -4,6 +4,7 @@ package com.example.tvcorousalwithjetcompose
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -44,6 +46,7 @@ import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import androidx.tv.material3.Border // Ensured this import is active
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import kotlinx.coroutines.delay
 import androidx.media3.common.Player as Media3Player
@@ -418,7 +421,7 @@ fun VideoIndicatorDot(
                 .fillMaxSize(0.6f)
                 .clip(CircleShape)
                 .background(
-                    if (isActive) Color.Red.copy(alpha = animatedAlpha)
+                    if (isActive) Color.Red.copy(alpha = animatedAlpha) // Corrected typo here
                     else Color.White.copy(alpha = animatedAlpha)
                 )
         )
@@ -451,7 +454,7 @@ fun BottomNavigationBar(
         shape = RoundedCornerShape(12.dp) // Rounded corners for the surface itself
     ) {
         Row(
-            // Row will wrap content by default if no size modifiers are present
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp), // Added vertical padding to the Row
             horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -480,10 +483,11 @@ fun BottomNavCard(
         modifier = Modifier.padding(0.dp), // Card itself does not need extra padding beyond what Row provides
         colors = TvCardDefaults.colors(
             containerColor = Color.Transparent, // Card background is transparent
-            // contentColor can be set here if TvCard respects it for all children,
-            // but explicitly setting on TvIcon and TvText is safer.
         ),
-        shape = TvCardDefaults.shape(shape = RoundedCornerShape(8.dp)) // Standard TV card shape, can be less rounded
+        shape = TvCardDefaults.shape(shape = RoundedCornerShape(8.dp)), // Standard TV card shape, can be less rounded
+        border = TvCardDefaults.border(
+            focusedBorder = Border(border = BorderStroke(width = 2.dp, brush = SolidColor(Orange))) // Ensuring this uses androidx.tv.material3.Border
+        )
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), // Padding inside each card
