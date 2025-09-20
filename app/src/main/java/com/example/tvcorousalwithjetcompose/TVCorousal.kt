@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -56,6 +54,9 @@ import androidx.tv.material3.MaterialTheme as TvMaterialTheme
 import androidx.tv.material3.Surface as TvSurface
 import androidx.tv.material3.SurfaceDefaults as TvSurfaceDefaults
 import androidx.tv.material3.Text as TvText
+
+// Define Orange color for selected items
+val Orange = Color(0xFFFFA500)
 
 // Data classes for carousel items
 sealed class CarouselItem {
@@ -120,7 +121,7 @@ fun TVCarouselApp() {
                 items = bottomNavItems,
                 selectedIndex = selectedBottomIndex,
                 onItemSelected = { selectedBottomIndex = it },
-                modifier = Modifier.align(Alignment.BottomCenter)
+                modifier = Modifier.align(Alignment.BottomCenter) // Aligns the whole nav bar
             )
         }
     }
@@ -168,14 +169,15 @@ fun CarouselWithIndicators(
 ) {
     var currentIndex by remember { mutableIntStateOf(0) }
     var videoProgress by remember { mutableFloatStateOf(0f) }
-    // videoDuration is implicitly handled by progress (0f to 1f)
     var isVideoPlaying by remember { mutableStateOf(false) }
 
     LaunchedEffect(currentIndex, items) {
         val currentItem = items.getOrNull(currentIndex)
         if (currentItem is CarouselItem.ImageItem) {
             delay(currentItem.duration)
-            currentIndex = (currentIndex + 1) % items.size
+            if (items.isNotEmpty()) { // Ensure items is not empty before modulo
+                currentIndex = (currentIndex + 1) % items.size
+            }
         }
     }
 
@@ -191,12 +193,14 @@ fun CarouselWithIndicators(
                 VideoSlide(
                     videoResId = currentItem.videoResId,
                     modifier = Modifier.fillMaxSize(),
-                    onProgressUpdate = { progress, _ -> // duration from player not strictly needed if progress is 0-1
+                    onProgressUpdate = { progress, _ ->
                         videoProgress = progress
                     },
                     onVideoCompleted = {
-                        currentIndex = (currentIndex + 1) % items.size
-                        videoProgress = 0f
+                        if (items.isNotEmpty()) { // Ensure items is not empty
+                            currentIndex = (currentIndex + 1) % items.size
+                            videoProgress = 0f
+                        }
                     },
                     onPlayingStateChanged = { isPlaying ->
                         isVideoPlaying = isPlaying
@@ -216,16 +220,18 @@ fun CarouselWithIndicators(
             }
         }
 
-        CarouselIndicators(
-            items = items,
-            currentIndex = currentIndex,
-            videoProgress = videoProgress,
-            isVideoPlaying = isVideoPlaying,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(32.dp)
-                .zIndex(10f)
-        )
+        if (items.isNotEmpty()) { // Only show indicators if there are items
+            CarouselIndicators(
+                items = items,
+                currentIndex = currentIndex,
+                videoProgress = videoProgress,
+                isVideoPlaying = isVideoPlaying,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(32.dp)
+                    .zIndex(10f)
+            )
+        }
     }
 }
 
@@ -278,12 +284,23 @@ fun VideoSlide(
         }
         player.addListener(listener)
 
-        // Progress tracking
-        while (player.isPlaying) { // Check isPlaying for active progress
+        var isProgressLoopActive = true
+        while (isProgressLoopActive) { // Loop while player is active or being set up
+            if (player.playbackState == Media3Player.STATE_IDLE || player.playbackState == Media3Player.STATE_BUFFERING){
+                 delay(100)
+                 continue
+            }
+            if (!player.isPlaying && player.playbackState != Media3Player.STATE_READY) {
+                isProgressLoopActive = false // Exit loop if not playing and not ready (e.g. error or ended without event)
+                continue
+            }
             val currentPosition = player.currentPosition
             val duration = player.duration
             if (duration > 0) {
                 onProgressUpdate(currentPosition.toFloat() / duration, duration)
+            }
+             if (!player.isPlaying && player.playbackState == Media3Player.STATE_ENDED) {
+                isProgressLoopActive = false // Ensure loop exits if ended event was missed
             }
             delay(100) // Update interval
         }
@@ -300,10 +317,10 @@ fun VideoSlide(
         factory = { ctx ->
             PlayerView(ctx).apply {
                 useController = false
-                this.player = exoPlayer // Assign the player instance
+                this.player = exoPlayer
             }
         },
-        update = { view -> // Update player in PlayerView if it changes
+        update = { view ->
             view.player = exoPlayer
         },
         modifier = modifier
@@ -315,7 +332,6 @@ fun CarouselIndicators(
     items: List<CarouselItem>,
     currentIndex: Int,
     videoProgress: Float,
-    // videoDuration: Long, // Removed as progress is 0-1
     isVideoPlaying: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -388,8 +404,8 @@ fun VideoIndicatorDot(
         )
 
         if (isActive && isPlaying) {
-            CircularProgressIndicator( // Use M3 CircularProgressIndicator
-                progress = { progress }, // Updated to lambda
+            CircularProgressIndicator(
+                progress = { progress },
                 modifier = Modifier.fillMaxSize(),
                 color = Color.White.copy(alpha = animatedAlpha),
                 strokeWidth = 2.dp,
@@ -408,11 +424,11 @@ fun VideoIndicatorDot(
         )
 
         if (isActive) {
-            val icon = if (isPlaying) "▶" else "⏸" // Simple text for play/pause
+            val icon = if (isPlaying) "▶" else "⏸"
             TvText(
                 text = icon,
                 color = Color.White,
-                style = TvMaterialTheme.typography.labelSmall // Use TV Material Theme
+                style = TvMaterialTheme.typography.labelSmall
             )
         }
     }
@@ -424,22 +440,19 @@ fun BottomNavigationBar(
     items: List<BottomNavItem>,
     selectedIndex: Int,
     onItemSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier // This modifier from TVCarouselApp is Modifier.align(Alignment.BottomCenter)
 ) {
-    TvSurface( // Use TV Surface
-        modifier = modifier
-            .fillMaxWidth()
-            .height(80.dp),
+    TvSurface(
+        modifier = modifier // Applied Modifier.align(Alignment.BottomCenter) first
+            .padding(16.dp), // Then padding is applied for the content area within the surface
         colors = TvSurfaceDefaults.colors(
-            containerColor = Color.Transparent // Changed to full transparent
+            containerColor = Color.Gray.copy(alpha = 0.5f) // Transparent gray background
         ),
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp) // Corrected: Direct Shape usage
+        shape = RoundedCornerShape(12.dp) // Rounded corners for the surface itself
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 32.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            // Row will wrap content by default if no size modifiers are present
+            horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically
         ) {
             items.forEachIndexed { index, item ->
@@ -460,35 +473,33 @@ fun BottomNavCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val backgroundColor by animateColorAsState(
-        targetValue = if (isSelected) TvMaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f) else Color.Transparent,
-        animationSpec = tween(300), // Explicit type for tween
-        label = "BottomNavCardBackground"
-    )
-    val contentColor = if (isSelected) TvMaterialTheme.colorScheme.onSurface else TvMaterialTheme.colorScheme.onSurfaceVariant
+    val contentColor = if (isSelected) Orange else Color.White
 
-
-    TvCard( // Use TV Card
+    TvCard(
         onClick = onClick,
-        modifier = Modifier.padding(4.dp),
-        colors = TvCardDefaults.colors(containerColor = backgroundColor),
-        shape = TvCardDefaults.shape(shape = RoundedCornerShape(12.dp))
+        modifier = Modifier.padding(0.dp), // Card itself does not need extra padding beyond what Row provides
+        colors = TvCardDefaults.colors(
+            containerColor = Color.Transparent, // Card background is transparent
+            // contentColor can be set here if TvCard respects it for all children,
+            // but explicitly setting on TvIcon and TvText is safer.
+        ),
+        shape = TvCardDefaults.shape(shape = RoundedCornerShape(8.dp)) // Standard TV card shape, can be less rounded
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), // Padding inside each card
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            TvIcon( // Use TV Icon
+            TvIcon(
                 imageVector = item.icon,
                 contentDescription = item.name,
-                tint = contentColor,
+                tint = contentColor, // Use the determined content color
                 modifier = Modifier.size(24.dp)
             )
-            TvText( // Use TV Text
+            TvText(
                 text = item.name,
-                color = contentColor,
-                style = TvMaterialTheme.typography.labelMedium // Use TV Material Theme
+                color = contentColor, // Use the determined content color
+                style = TvMaterialTheme.typography.labelMedium
             )
         }
     }
